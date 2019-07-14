@@ -2,7 +2,7 @@
 """
 Created on 2019-07-10 18:27:27
 @Author: ZHAO Lingfeng
-@Version : 0.0.1
+@Version : 0.0.2
 """
 import socket
 import time
@@ -14,6 +14,7 @@ from queue import deque
 import datetime
 import random
 import logging
+import uuid
 
 import zmq
 
@@ -45,7 +46,7 @@ VERSION = 1
 
 UDP_PORT = 23456
 BROADCAST_ADDR = '255.255.255.255'
-BROADCAST_HEADER = b'LocalChatBcMsg;'
+BROADCAST_HEADER = b'LCBcMsg;'
 
 
 @dataclass(frozen=True, eq=True)
@@ -53,17 +54,20 @@ class ChatList:
     ip: str
     port: int
     version: int
+    uuid: bytes
 
 
 class ChatListManager:
 
-    PACK_FORMAT = '!HH'
+    PACK_FORMAT = '!HH4s'
 
     def __init__(self, tcp_port, version, timeout=20):
         self.timeout = timeout
         self.peer_list = {}  # OrderedDict()
+        # 4 digit is enough for LAN
+        self.uuid = uuid.uuid4().bytes[-4:]
 
-        self.BROADCAST_MESSAGE = BROADCAST_HEADER + struct.pack(self.PACK_FORMAT, tcp_port, version)
+        self.BROADCAST_MESSAGE = BROADCAST_HEADER + struct.pack(self.PACK_FORMAT, tcp_port, version, self.uuid)
 
         self.client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.client.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -105,13 +109,13 @@ class ChatListManager:
         linfo('server started')
         while True:
             data, address = self.server.recvfrom(1024)
-            # ldebug(f"UDP received message: {data}, from {address}")
+            ldebug(f"UDP received message: {data}, from {address}")
             if not data:
                 lerror("Wrong ")
             if data.startswith(BROADCAST_HEADER):
-                tcp_port, version = struct.unpack_from(self.PACK_FORMAT, data, len(BROADCAST_HEADER))
+                tcp_port, version, uuid = struct.unpack_from(self.PACK_FORMAT, data, len(BROADCAST_HEADER))
                 # print(tcp_port, version, address[0])
-                self.update_peer_list(ChatList(address[0], tcp_port, version))
+                self.update_peer_list(ChatList(address[0], tcp_port, version, uuid))
 
 
 class ChatManager:
