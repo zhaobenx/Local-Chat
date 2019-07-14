@@ -15,6 +15,8 @@ import datetime
 import random
 import logging
 
+import zmq
+
 logger = logging.getLogger()
 
 handler1 = logging.FileHandler("log.txt", encoding="utf-8")
@@ -87,7 +89,7 @@ class ChatListManager:
     def get_list(self):
         return [k for k, v in self.peer_list.items() if v + self.timeout > datetime.datetime.now().timestamp()]
 
-    def run(self):
+    def start(self):
         self.run_c.start()
         self.run_s.start()
 
@@ -103,7 +105,7 @@ class ChatListManager:
         linfo('server started')
         while True:
             data, address = self.server.recvfrom(1024)
-            ldebug(f"UDP received message: {data}, from {address}")
+            # ldebug(f"UDP received message: {data}, from {address}")
             if not data:
                 lerror("Wrong ")
             if data.startswith(BROADCAST_HEADER):
@@ -112,12 +114,40 @@ class ChatListManager:
                 self.update_peer_list(ChatList(address[0], tcp_port, version))
 
 
+class ChatManager:
+    # pylint: disable=no-member
+    def __init__(self):
+        self.zcontext = zmq.Context()
+        self.zserver = self.zcontext.socket(zmq.PULL)
+        self.port = self.zserver.bind_to_random_port('tcp://*')
+        self.clm = ChatListManager(self.port, VERSION)
+        self.zclient = self.zcontext.socket(zmq.PUSH)
+
+        self.run_r = threading.Thread(target=self.run_receive)
+        self.run_r.daemon = True
+
+    def run_receive(self):
+        linfo(f'TCP server works on -{self.port}-')
+        while True:
+            print(f'MESSAGE received: {self.zserver.recv()}')
+
+    def run(self):
+        self.clm.start()
+        self.run_r.start()
+        while True:
+            time.sleep(10)
+            ldebug('sending greatings')
+            peer_list = self.clm.get_list()
+            ldebug(f'peer list: {peer_list}')
+            for c in peer_list:
+                client = self.zcontext.socket(zmq.PUSH)
+                client.connect(f'tcp://{c.ip}:{c.port}')
+                client.send_string(f'Hello from {self.port} to {c.ip}:{c.port}')
+
+
 def main():
-    cm = ChatListManager(random.randrange(200, 20000), VERSION)
+    cm = ChatManager()
     cm.run()
-    while 1:
-        time.sleep(5)
-        ldebug(f"== {cm.get_list()}")
 
 
 if __name__ == "__main__":
