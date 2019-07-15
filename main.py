@@ -24,7 +24,7 @@ import zmq
 logger = logging.getLogger()
 
 handler1 = logging.FileHandler("user.log", encoding="utf-8")
-handler2 = logging.StreamHandler()#FileHandler("debug.log", encoding="utf-8")
+handler2 = logging.FileHandler("debug.log", encoding="utf-8")
 
 logger.setLevel(level=logging.NOTSET)
 handler1.setLevel(logging.INFO)
@@ -59,6 +59,9 @@ class ChatInfo:
     port: int
     version: int
     timestamp: float = datetime.datetime.now().timestamp()
+
+    def __post_init__(self):
+        self.timestamp = datetime.datetime.now().timestamp()
 
     def __eq__(self, o):
         return self.ip == o.ip and self.port == o.port and self.version == o.version
