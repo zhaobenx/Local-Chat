@@ -52,6 +52,19 @@ BROADCAST_ADDR = '255.255.255.255'
 BROADCAST_HEADER = b'LCBcMsg;'
 
 
+def get_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # doesn't even have to be reachable
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP
+
+
 @dataclass
 class ChatInfo:
 
@@ -111,6 +124,7 @@ class ChatListManager:
 
         self.client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.client.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.client.bind((get_ip(), 0))
         self.run_c = threading.Thread(target=self._run_client)
         self.run_c.daemon = True
 
@@ -361,7 +375,7 @@ def main():
             cm.print_chat_list()
         elif c.lower() == 's':
             # completer = WordCompleter([k for k,v in cm.chat_list.items()])
-            uuid = prompt("uuid:", completer=MyCustomCompleter([k for k,v in cm.chat_list.items()], cm.name_dict))
+            uuid = prompt("uuid:", completer=MyCustomCompleter([k for k, v in cm.chat_list.items()], cm.name_dict))
             message = input("message:")
             cm.send_text(uuid, message)
 
